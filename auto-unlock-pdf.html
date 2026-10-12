@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 Auto Unlock PDF - Tự động tải PDF không mật khẩu</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .status {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .status.processing {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .log {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+        }
+        
+        .log-entry.info { color: #2196f3; }
+        .log-entry.success { color: #4caf50; }
+        .log-entry.error { color: #f44336; }
+        .log-entry.warning { color: #ff9800; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Auto Unlock PDF</h1>
+        <p style="color: #666; margin-bottom: 20px;">Tự động tải và mở khóa PDF</p>
+        
+        <div id="status" class="status">
+            <div style="font-size: 18px; font-weight: 600;">⏳ Đang khởi tạo...</div>
+        </div>
+        
+        <div id="progress-container" style="display: none;">
+            <div class="progress-bar">
+                <div id="progress-fill" class="progress-fill">0%</div>
+            </div>
+        </div>
+        
+        <div class="info-box">
+            <strong>🔧 Cách sử dụng:</strong><br>
+            <ol style="margin: 10px 0 0 20px; line-height: 1.8;">
+                <li>Tại trang PDF trên digital.lib.ueh.edu.vn, click bookmarklet</li>
+                <li>Trang này sẽ tự động mở và xử lý</li>
+                <li>Chờ download tự động hoàn thành</li>
+            </ol>
+        </div>
+        
+        <div class="info-box" style="background: #fff3e0; border-left-color: #ff9800;">
+            <strong>⚠️ Lưu ý quan trọng:</strong><br>
+            Do hạn chế bảo mật của browser, tool này cần:<br>
+            <ul style="margin: 10px 0 0 20px;">
+                <li><strong>CORS proxy</strong> hoặc <strong>Chrome Extension</strong> để tải PDF</li>
+                <li>Nếu không tự động, vui lòng dùng phương pháp thủ công (Ctrl+S → Extract password → Ctrl+P)</li>
+            </ul>
+        </div>
+        
+        <div id="log" class="log"></div>
+        
+        <div style="text-align: center; margin-top: 20px;">
+            <button onclick="retry()" id="retryBtn" style="display: none;">🔄 Thử lại</button>
+            <button onclick="window.close()" style="background: #f44336;">❌ Đóng</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script>
+        const { PDFDocument } = PDFLib;
+        
+        let logEntries = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            logEntries.push({ timestamp, message, type });
+            updateLog();
+        }
+        
+        function updateLog() {
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML = logEntries.map(entry => 
+                `<div class="log-entry ${entry.type}">[${entry.timestamp}] ${entry.message}</div>`
+            ).join('');
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function updateStatus(message, status = 'processing') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${status}`;
+            
+            let icon = '⏳';
+            if (status === 'success') icon = '✅';
+            if (status === 'error') icon = '❌';
+            
+            statusDiv.innerHTML = `<div style="font-size: 18px; font-weight: 600;">${icon} ${message}</div>`;
+        }
+        
+        function updateProgress(percent, text) {
+            const progressContainer = document.getElementById('progress-container');
+            const progressFill = document.getElementById('progress-fill');
+            
+            progressContainer.style.display = 'block';
+            progressFill.style.width = `${percent}%`;
+            progressFill.textContent = text || `${percent}%`;
+        }
+        
+        async function sha256(message) {
+            const msgBuffer = new TextEncoder().encode(message);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+        
+        async function downloadPDF(url) {
+            log('Đang tải PDF từ server...', 'info');
+            updateProgress(20, 'Đang tải...');
+            
+            try {
+                // Try direct fetch first
+                const response = await fetch(url, {
+                    mode: 'cors',
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const blob = await response.blob();
+                log(`✓ Tải thành công (${(blob.size / 1024 / 1024).toFixed(2)} MB)`, 'success');
+                updateProgress(40, 'Đã tải xong');
+                return blob;
+            } catch (error) {
+                log(`✗ Lỗi CORS: ${error.message}`, 'error');
+                
+                // Try with CORS proxy
+                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+                log('Thử dùng CORS proxy...', 'warning');
+                
+                try {
+                    const response = await fetch(proxyUrl);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    
+                    const blob = await response.blob();
+                    log(`✓ Tải qua proxy thành công`, 'success');
+                    updateProgress(40, 'Đã tải xong');
+                    return blob;
+                } catch (proxyError) {
+                    log(`✗ Proxy cũng thất bại: ${proxyError.message}`, 'error');
+                    throw new Error('Không thể tải PDF. Vui lòng dùng Chrome Extension hoặc phương pháp thủ công.');
+                }
+            }
+        }
+        
+        async function unlockPDF(pdfBlob, password) {
+            log('Đang mở khóa PDF...', 'info');
+            updateProgress(60, 'Đang giải mã...');
+            
+            try {
+                const arrayBuffer = await pdfBlob.arrayBuffer();
+                
+                // Load PDF with password
+                const pdfDoc = await PDFDocument.load(arrayBuffer, {
+                    password: password,
+                    ignoreEncryption: false
+                });
+                
+                log(`✓ Mở khóa thành công (${pdfDoc.getPageCount()} trang)`, 'success');
+                updateProgress(80, 'Đã giải mã');
+                
+                // Save without password
+                const pdfBytes = await pdfDoc.save();
+                
+                log('✓ Tạo PDF mới không mật khẩu', 'success');
+                updateProgress(90, 'Hoàn tất');
+                
+                return new Blob([pdfBytes], { type: 'application/pdf' });
+            } catch (error) {
+                log(`✗ Lỗi giải mã: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+        
+        function downloadFile(blob, filename) {
+            log('Đang tải xuống...', 'info');
+            updateProgress(100, 'Hoàn thành!');
+            
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            log('✓ Tải xuống hoàn tất!', 'success');
+        }
+        
+        async function processAuto() {
+            try {
+                updateStatus('Đang xử lý...', 'processing');
+                
+                // Get params from URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const doc = urlParams.get('doc');
+                const bitsid = urlParams.get('bitsid');
+                
+                if (!doc || !bitsid) {
+                    throw new Error('Thiếu tham số. Vui lòng sử dụng bookmarklet để mở trang này.');
+                }
+                
+                log(`doc: ${doc}`, 'info');
+                log(`bitsid: ${bitsid}`, 'info');
+                updateProgress(10, 'Đã nhận params');
+                
+                // Calculate password
+                const key = 'Dlc0rp#!234';
+                const password = await sha256(key + bitsid);
+                log('✓ Đã tính password', 'success');
+                
+                // Construct PDF URL
+                const docParts = doc.match(/.{2}/g);
+                const pdfUrl = `/dspace/pdf/${docParts[0]+docParts[1]+'/'}${docParts[2]+docParts[3]+'/'}${docParts[4]+docParts[5]+'/'}${bitsid}.pdf`;
+                log(`PDF URL: ${pdfUrl}`, 'info');
+                
+                // Download PDF
+                const pdfBlob = await downloadPDF(pdfUrl);
+                
+                // Unlock PDF
+                const unlockedBlob = await unlockPDF(pdfBlob, password);
+                
+                // Download
+                const filename = `unlocked_${bitsid}.pdf`;
+                downloadFile(unlockedBlob, filename);
+                
+                updateStatus('Hoàn thành! File đã được tải xuống.', 'success');
+                
+            } catch (error) {
+                log(`✗ LỖI: ${error.message}`, 'error');
+                updateStatus(`Lỗi: ${error.message}`, 'error');
+                document.getElementById('retryBtn').style.display = 'inline-block';
+                
+                // Show manual instructions
+                const statusDiv = document.getElementById('status');
+                statusDiv.innerHTML += `
+                    <div style="margin-top: 15px; text-align: left; font-size: 14px;">
+                        <strong>💡 Giải pháp thay thế:</strong><br>
+                        1. Dùng phương pháp thủ công (Ctrl+S → Extract password → Ctrl+P)<br>
+                        2. Hoặc cài đặt <a href="../print-unblock-extension" style="color: #2196f3;">Chrome Extension</a>
+                    </div>
+                `;
+            }
+        }
+        
+        function retry() {
+            logEntries = [];
+            updateLog();
+            document.getElementById('retryBtn').style.display = 'none';
+            processAuto();
+        }
+        
+        // Auto start when page loads
+        window.addEventListener('load', () => {
+            setTimeout(processAuto, 500);
+        });
+    </script>
+</body>
+</html>
